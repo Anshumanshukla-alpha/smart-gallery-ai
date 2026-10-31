@@ -8,6 +8,7 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('django.contrib.auth.urls')), # Built-in Login/Logout
     path('register/', views.register, name='register'),
+    path('privacy/', views.privacy_notice, name='privacy'),
     
     path('', views.home, name='home'),
     path('upload/', views.upload, name='upload'),
@@ -21,4 +22,8 @@ urlpatterns = [
     path('search/', views.image_search, name='image_search'),
     path('events/', views.events_list, name='events'),
     path('events/<int:event_id>/', views.event_detail, name='event_detail'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    path('account/delete/', views.delete_account, name='delete_account'),
+]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

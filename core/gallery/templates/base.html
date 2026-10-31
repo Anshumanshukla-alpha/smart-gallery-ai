@@ -347,6 +347,12 @@
                             <i class="fa-solid fa-arrow-right-from-bracket"></i>
                         </button>
                     </form>
+                    <form action="{% url 'delete_account' %}" method="post" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="logout-btn" title="Delete account and gallery" onclick="return confirm('Delete your account and gallery? This cannot be undone.');">
+                            <i class="fa-regular fa-trash-can"></i>
+                        </button>
+                    </form>
                 </div>
             {% else %}
                 <a href="{% url 'login' %}" class="nav-link">Login</a>
@@ -357,6 +363,11 @@
 
     <!-- CONTENT -->
     <main class="main-content">
+        {% if messages %}
+            {% for message in messages %}
+                <p role="status" style="max-width: 1400px; margin: 1rem auto; padding: 0 2rem; color: #1d4ed8;">{{ message }}</p>
+            {% endfor %}
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 
@@ -371,10 +382,8 @@
                 <p style="font-size: 0.8rem;">Powered by Django & InsightFace AI</p>
             </div>
             <div class="footer-links">
-                <a href="#">Privacy</a>
-                <a href="#">Terms</a>
-                <a href="#">About</a>
-                <a href="https://projectworlds.com/" target="_blank"><i class="fa-brands fa-github"></i> Projectworlds</a>
+                <a href="{% url 'privacy' %}">Privacy</a>
+                <a href="https://github.com/Anshumanshukla-alpha/smart-gallery-ai" target="_blank" rel="noopener noreferrer"><i class="fa-brands fa-github"></i> Source</a>
             </div>
         </div>
     </footer>

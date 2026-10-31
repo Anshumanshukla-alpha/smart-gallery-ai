@@ -2,6 +2,9 @@ import uuid
 import os
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
+from django.db.models.signals import post_delete
+from django.dispatch import receiver
 
 
 # --- Helper Function for Security ---
@@ -38,6 +41,12 @@ class Event(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class PrivacyConsent(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='privacy_consent')
+    accepted_at = models.DateTimeField(default=timezone.now)
+    policy_version = models.CharField(max_length=32, default='2026-11-01')
 
 
 class PersonGroup(models.Model):
@@ -85,3 +94,15 @@ class Face(models.Model):
 
     def __str__(self):
         return f"Face in Photo {self.photo.id}"
+
+
+@receiver(post_delete, sender=Photo)
+def delete_photo_file(sender, instance, **kwargs):
+    if instance.image:
+        instance.image.delete(save=False)
+
+
+@receiver(post_delete, sender=Face)
+def delete_face_file(sender, instance, **kwargs):
+    if instance.image_cutout:
+        instance.image_cutout.delete(save=False)

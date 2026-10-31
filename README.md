@@ -1,5 +1,17 @@
 \# Smart Gallery AI
 
+## Deploying safely
+
+This project processes personal photos and face embeddings. Before publishing it, use PostgreSQL and private S3-compatible object storage, set the environment variables in `.env.example`, and run it behind HTTPS. `render.yaml` provides a Docker-based Render blueprint; set the generated service URL in `ALLOWED_HOSTS` and `CSRF_TRUSTED_ORIGINS` before first deploy. The app's privacy notice and consent checkbox are product safeguards, not a substitute for legal advice or local privacy-law review.
+
+Run migrations before serving traffic:
+
+```bash
+python core/manage.py migrate
+python core/manage.py collectstatic --noinput
+gunicorn --chdir core --bind 0.0.0.0:8000 core.wsgi:application
+```
+
 
 
 An AI-powered smart photo gallery built with Django, InsightFace, OpenCV, and SQLite.

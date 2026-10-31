@@ -1,4 +1,5 @@
 .venv/
+.venv-deploycheck/
 __pycache__/
 *.py[cod]
 *.pyo
@@ -13,6 +14,7 @@ db.sqlite3
 
 core/media/
 core/staticfiles/
+core/media/
 
 .vscode/
 .idea/

@@ -34,13 +34,14 @@ def scan_photo(photo_instance):
     3. Saves Face Objects to DB
     4. Returns list of newly created Face objects
     """
-    img_path = photo_instance.image.path
     new_faces_found = []
 
     try:
-        # Load with PIL to handle rotation (EXIF)
-        pil_image = Image.open(img_path)
-        pil_image = ImageOps.exif_transpose(pil_image)
+        # Read through Django storage so local and private object storage both work.
+        with photo_instance.image.open('rb') as image_stream:
+            pil_image = Image.open(image_stream)
+            pil_image = ImageOps.exif_transpose(pil_image)
+            pil_image.load()
 
         if pil_image.mode != 'RGB':
             pil_image = pil_image.convert('RGB')

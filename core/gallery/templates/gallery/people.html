@@ -58,9 +58,12 @@
 
 <div style="display:flex; justify-content:space-between; align-items:center;">
     <h2>People & Pets</h2>
-    <a href="{% url 'rescan' %}" style="color: #666; font-size: 0.9rem; text-decoration: none;">
-        <i class="fa-solid fa-rotate"></i> Re-scan Library
-    </a>
+    <form action="{% url 'rescan' %}" method="post">
+        {% csrf_token %}
+        <button type="submit" style="color: #666; font-size: 0.9rem; text-decoration: none; border: 0; background: transparent; cursor: pointer;">
+            <i class="fa-solid fa-rotate"></i> Re-scan Library
+        </button>
+    </form>
 </div>
 
 <div class="people-grid">

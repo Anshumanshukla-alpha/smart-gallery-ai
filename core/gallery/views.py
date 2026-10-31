@@ -6,11 +6,13 @@ from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.db.models import Count
 from django.core.files.base import ContentFile
+from django.conf import settings
+from django.contrib import messages
+from django.views.decorators.http import require_POST
 from io import BytesIO
 
 from .forms import RegisterForm, PhotoUploadForm
-from .models import Photo, PersonGroup, Face, Event  # <--- Added Event here
-from .ai_logic import scan_photo, assign_face_to_existing_group, full_clustering_dbscan, search_photos_by_face
+from .models import Photo, PersonGroup, Face, Event, PrivacyConsent
 from .collage_maker import create_collage
 from .event_logic import auto_generate_events  # <--- Correct Import
 from django.http import HttpResponse
@@ -21,7 +23,9 @@ def register(request):
     if request.method == "POST":
         form = RegisterForm(request.POST)
         if form.is_valid():
-            user = form.save()
+            with transaction.atomic():
+                user = form.save()
+                PrivacyConsent.objects.create(user=user)
             login(request, user)
             return redirect('home')
     else:
@@ -52,19 +56,34 @@ def home(request):
     return render(request, 'gallery/home.html', context)
 
 
+def privacy_notice(request):
+    return render(request, 'privacy.html')
+
+
 # --- UPLOAD ---
 @login_required
 def upload(request):
     if request.method == 'POST':
         images = request.FILES.getlist('image')
-        if images:
+        if len(images) > settings.MAX_UPLOAD_FILES:
+            messages.error(request, f'Upload no more than {settings.MAX_UPLOAD_FILES} photos at a time.')
+        elif images:
+            form = PhotoUploadForm()
+            valid_images = []
+            for image in images:
+                form = PhotoUploadForm(files={'image': image})
+                if not form.is_valid():
+                    messages.error(request, f'{image.name}: {form.errors["image"][0]}')
+                    return redirect('upload')
+                valid_images.append(image)
             new_photos = []
             with transaction.atomic():
-                for image_file in images:
+                for image_file in valid_images:
                     photo = Photo.objects.create(user=request.user, image=image_file)
                     new_photos.append(photo)
 
             def batch_process(photos, user):
+                from .ai_logic import scan_photo, assign_face_to_existing_group
                 print(f"Processing {len(photos)} new photos...")
                 for p in photos:
                     new_faces = scan_photo(p)
@@ -75,7 +94,7 @@ def upload(request):
                 auto_generate_events(user)
                 print("Processing complete.")
 
-            threading.Thread(target=batch_process, args=(new_photos, request.user)).start()
+            threading.Thread(target=batch_process, args=(new_photos, request.user), daemon=True).start()
             return redirect('home')
 
     form = PhotoUploadForm()
@@ -166,25 +185,27 @@ def photo_detail(request, photo_id):
 
 
 @login_required
+@require_POST
 def delete_photo(request, photo_id):
     photo = get_object_or_404(Photo, id=photo_id, user=request.user)
-    if request.method == "POST":
-        photo.delete()
-        return redirect('home')
+    photo.delete()
     return redirect('home')
 
 
 @login_required
+@require_POST
 def rescan_all(request):
     def run_full_rescan(user):
+        from .ai_logic import full_clustering_dbscan
         full_clustering_dbscan(user)
         auto_generate_events(user)  # Also regenerate events
 
-    threading.Thread(target=run_full_rescan, args=(request.user,)).start()
+    threading.Thread(target=run_full_rescan, args=(request.user,), daemon=True).start()
     return redirect('people')
 
 
 @login_required
+@require_POST
 def generate_person_collage(request, group_id):
     group = get_object_or_404(PersonGroup, id=group_id, user=request.user)
     faces = group.faces.all()
@@ -194,6 +215,7 @@ def generate_person_collage(request, group_id):
     selected_photos = random.sample(all_photos, num_to_pick)
     collage_image = create_collage(selected_photos)
     if collage_image:
+        from .ai_logic import scan_photo
         buffer = BytesIO()
         collage_image.save(buffer, format='JPEG', quality=95)
         new_photo = Photo(user=request.user)
@@ -202,10 +224,19 @@ def generate_person_collage(request, group_id):
         scan_photo(new_photo)
     return redirect('home')
 
+@login_required
 def debug_stats(request):
     f_count = Face.objects.filter(photo__user=request.user).count()
     g_count = PersonGroup.objects.filter(user=request.user).count()
     return HttpResponse(f"<h1>Debug Stats</h1><p>Faces Detected in DB: {f_count}</p><p>Groups Created: {g_count}</p>")
+
+
+@login_required
+@require_POST
+def delete_account(request):
+    request.user.delete()
+    messages.success(request, 'Your account and gallery records have been deleted.')
+    return redirect('home')
 
 
 @login_required
@@ -214,6 +245,11 @@ def image_search(request):
     query_image_url = None
     if request.method == "POST" and request.FILES.get('query_img'):
         image_file = request.FILES['query_img']
+        form = PhotoUploadForm(files={'image': image_file})
+        if not form.is_valid():
+            messages.error(request, f'Query image: {form.errors["image"][0]}')
+            return redirect('image_search')
+        from .ai_logic import search_photos_by_face
         results = search_photos_by_face(image_file, request.user)
         import base64
         image_file.seek(0)
